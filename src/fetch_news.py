@@ -3,12 +3,15 @@ import pandas as pd
 from dotenv import load_dotenv
 import os
 from datetime import datetime
+from sqlalchemy import create_engine, text
 
-# Load API key from .env file
+# Load API keys
 load_dotenv()
 API_KEY = os.getenv("MEDIASTACK_API_KEY")
 
-# Keywords related to supply chain risks
+# Database connection
+engine = create_engine("postgresql://abhimanyushukla@localhost/supplyguard_db")
+
 KEYWORDS = [
     "supply chain disruption",
     "port strike",
@@ -44,16 +47,46 @@ def fetch_news():
                     "keyword": keyword
                 })
         else:
-            print(f"  No data for '{keyword}': {data}")
+            print(f"  Skipped '{keyword}': {data.get('error', {}).get('message', 'unknown error')}")
 
-    # Save to CSV
     df = pd.DataFrame(all_articles)
+
+    if df.empty:
+        print("No articles fetched.")
+        return df
+
+    # Save to CSV as backup
     os.makedirs("data", exist_ok=True)
     filename = f"data/news_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     df.to_csv(filename, index=False)
-    print(f"\n✅ Saved {len(df)} articles to {filename}")
+    print(f"✅ Saved {len(df)} articles to CSV: {filename}")
+
+    # Save to PostgreSQL database
+    inserted = 0
+    with engine.connect() as conn:
+        for _, row in df.iterrows():
+            try:
+                conn.execute(text("""
+                    INSERT INTO raw_news (title, description, source, published_at, url, keyword)
+                    VALUES (:title, :description, :source, :published_at, :url, :keyword)
+                    ON CONFLICT (url) DO NOTHING
+                """), {
+                    "title": row["title"],
+                    "description": row["description"],
+                    "source": row["source"],
+                    "published_at": row["published_at"] if row["published_at"] else None,
+                    "url": row["url"],
+                    "keyword": row["keyword"]
+                })
+                inserted += 1
+            except Exception as e:
+                print(f"  Skipped duplicate: {e}")
+        conn.commit()
+
+    print(f"✅ Inserted {inserted} articles into database")
     return df
 
 if __name__ == "__main__":
     df = fetch_news()
-    print(df[["title", "source", "keyword"]].head(10))
+    if not df.empty:
+        print(df[["title", "source", "keyword"]].head(10))
