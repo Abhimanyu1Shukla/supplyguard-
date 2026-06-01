@@ -1,0 +1,6 @@
+2026-06-02 00:04:46,682 — Running fetch_news.py
+2026-06-02 00:05:00,550 — ✅ fetch_news.py success
+2026-06-02 00:05:00,550 — Running fetch_weather.py
+2026-06-02 00:05:02,164 — ✅ fetch_weather.py success
+2026-06-02 00:05:02,164 — Running fetch_gdelt.py
+2026-06-02 00:05:03,119 — ✅ fetch_gdelt.py success
